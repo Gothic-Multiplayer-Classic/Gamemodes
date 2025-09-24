@@ -1,0 +1,9 @@
+version = "0.1.0"
+author = "Gothic Multiplayer Team"
+description = "Classic Mode based on GMP 0.2b gameplay"
+
+scripts = [
+  "shared/classes.lua",
+  "shared/visuals.lua",
+  "server/main.lua"
+]

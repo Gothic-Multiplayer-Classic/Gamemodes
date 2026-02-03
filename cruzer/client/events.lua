@@ -1,0 +1,25 @@
+print("addEvent 'cruzer:disableControls': ", addEvent("cruzer:disableControls", true))
+addEventHandler("cruzer:disableControls", function(sourceId, toggle)
+    disableControls(toggle)
+end)
+
+print("addEvent 'cruzer:clearInventory': ", addEvent("cruzer:clearInventory", true))
+addEventHandler("cruzer:clearInventory", function()
+    clearInventory()
+end)
+
+print("addEvent 'cruzer:exitGame': ", addEvent("cruzer:exitGame", true))
+addEventHandler("cruzer:exitGame", function()
+    exitGame()
+end)
+
+print("addEvent 'cruzer:showUi': ", addEvent("cruzer:showUi", true))
+addEventHandler("cruzer:showUi", function()
+    clearMultiplayerMessages()
+    CruzerUI.show()
+end)
+
+print("addEvent 'cruzer:hideUi': ", addEvent("cruzer:hideUi", true))
+addEventHandler("cruzer:hideUi", function()
+    CruzerUI.hide()
+end)

@@ -7,6 +7,9 @@ local creatingVisualByPlayer = {}
 local visualByPlayer = {}
 local allowedHeadModels = {}
 
+setVoiceRange(Classic.voiceRange)
+setVoiceEnabled(true)
+
 for _, head in ipairs(Visuals.headModels) do
   allowedHeadModels[head.model] = true
 end
@@ -37,13 +40,23 @@ local function normalizeVisual(visual)
     return nil
   end
 
+  local walkingOverlay = visual.walkingOverlay
+  if walkingOverlay == nil then
+    walkingOverlay = Visuals.default.walkingOverlay
+  end
+
+  if not Visuals.isWalkingOverlayAllowed(walkingOverlay) then
+    return nil
+  end
+
   return {
     bodyModel = bodyModel,
     bodyTexture = clampInt(visual.bodyTexture, Visuals.skinTexture.min, Visuals.skinTexture.max),
     headModel = headModel,
     headTexture = clampInt(visual.headTexture, Visuals.faceTexture.min, Visuals.faceTexture.max),
     teethTexture = Visuals.teethTexture,
-    skinColor = Visuals.skinColor
+    skinColor = Visuals.skinColor,
+    walkingOverlay = walkingOverlay
   }
 end
 
@@ -67,7 +80,7 @@ local function playerStoreKey(playerId)
 end
 
 local function loadPlayerVisual(playerId)
-  local file = JSON(visualStorePath)
+  local file = JSON.open(visualStorePath)
   if not file then
     return nil
   end
@@ -76,7 +89,7 @@ local function loadPlayerVisual(playerId)
 end
 
 local function savePlayerVisual(playerId, visual)
-  local file = JSON(visualStorePath)
+  local file = JSON.open(visualStorePath)
   if not file then
     return false
   end
@@ -92,7 +105,7 @@ local function applyVisual(playerId, visual)
 
   visualByPlayer[playerId] = visual
 
-  return setPlayerVisual(
+  local applied = setPlayerVisual(
     playerId,
     visual.bodyModel,
     visual.bodyTexture,
@@ -101,6 +114,12 @@ local function applyVisual(playerId, visual)
     visual.teethTexture,
     visual.skinColor
   )
+
+  if not applied then
+    return false
+  end
+
+  return Visuals.applyWalkingOverlay(playerId, visual.walkingOverlay)
 end
 
 local function applyStats(playerId, info)
@@ -153,6 +172,7 @@ end
 local function preparePreviewPlayer(playerId)
   local spawn = Classic.selectorPlayerPosition
 
+  setVoiceEnabledForPlayer(playerId, false)
   setPlayerRespawnTime(playerId, 5000)
   setPlayerHealth(playerId, 500)
   setPlayerMaxHealth(playerId, 500)
@@ -232,10 +252,11 @@ addEventHandler('classic:selectClass', function(playerId, classId)
   setPlayerAngle(playerId, spawn.angle or 180)
   setPlayerVirtualWorld(playerId, 0)
   giveEquipment(playerId, info)
+  setVoiceEnabledForPlayer(playerId, true)
 
   local playerName = getPlayerName(playerId) or 'Player'
   sendMessageToAll(0, 255, 0, playerName .. ' joined to the game.')
-  triggerClientEvent(playerId, 'classic:classSelected', playerId, classId)
+  triggerClientEvent(playerId, 'classic:classSelected', playerId, classId, playerName)
 end)
 
 addEventHandler('onPlayerRespawn', function(playerId)
@@ -274,3 +295,7 @@ addEventHandler('onPlayerDisconnect', function(playerId)
   creatingVisualByPlayer[playerId] = nil
   visualByPlayer[playerId] = nil
 end)
+
+function onResourceStop()
+  setVoiceEnabled(false)
+end

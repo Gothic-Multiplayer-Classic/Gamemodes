@@ -7,6 +7,7 @@ local CharacterCreation = {
   headIndex = 4,
   skinTexture = Visuals.default.bodyTexture,
   faceTexture = Visuals.default.headTexture,
+  walkingOverlayIndex = 1,
   savedCameraMovement = nil,
   savedCameraModeChange = nil
 }
@@ -26,11 +27,14 @@ local faceLabel = Draw.new(0, 450, 'Face:')
 local faceValue = Draw.new(0, 450, '')
 local skinLabel = Draw.new(0, 600, 'Skin:')
 local skinValue = Draw.new(0, 600, '')
+local walkingLabel = Draw.new(0, 750, 'Walking:')
+local walkingValue = Draw.new(0, 750, '')
 
 local rows = {
   { label = headLabel, value = headValue },
   { label = faceLabel, value = faceValue },
-  { label = skinLabel, value = skinValue }
+  { label = skinLabel, value = skinValue },
+  { label = walkingLabel, value = walkingValue }
 }
 
 local draws = {
@@ -41,7 +45,9 @@ local draws = {
   faceLabel,
   faceValue,
   skinLabel,
-  skinValue
+  skinValue,
+  walkingLabel,
+  walkingValue
 }
 
 for _, draw in ipairs(draws) do
@@ -58,6 +64,7 @@ end
 alignValue(headLabel, headValue)
 alignValue(faceLabel, faceValue)
 alignValue(skinLabel, skinValue)
+alignValue(walkingLabel, walkingValue)
 
 local function clamp(value, minimum, maximum)
   value = math.floor(tonumber(value) or minimum)
@@ -108,7 +115,8 @@ function CharacterCreation:visual()
     headModel = head.model,
     headTexture = self.faceTexture,
     teethTexture = Visuals.teethTexture,
-    skinColor = Visuals.skinColor
+    skinColor = Visuals.skinColor,
+    walkingOverlay = Visuals.walkingOverlays[self.walkingOverlayIndex].overlay
   }
 end
 
@@ -120,6 +128,13 @@ function CharacterCreation:setVisual(visual)
   self.headIndex = findHeadIndex(visual.headModel or Visuals.default.headModel)
   self.skinTexture = clamp(tonumber(visual.bodyTexture) or Visuals.default.bodyTexture, Visuals.skinTexture.min, Visuals.skinTexture.max)
   self.faceTexture = clamp(tonumber(visual.headTexture) or Visuals.default.headTexture, Visuals.faceTexture.min, Visuals.faceTexture.max)
+  self.walkingOverlayIndex = 1
+  for index, entry in ipairs(Visuals.walkingOverlays) do
+    if entry.overlay == visual.walkingOverlay then
+      self.walkingOverlayIndex = index
+      break
+    end
+  end
 end
 
 function CharacterCreation:preview()
@@ -133,6 +148,7 @@ function CharacterCreation:preview()
   headValue:setText(head.label .. ' (' .. tostring(self.headIndex - 1) .. ')')
   faceValue:setText(tostring(self.faceTexture))
   skinValue:setText(tostring(self.skinTexture))
+  walkingValue:setText(Visuals.walkingOverlays[self.walkingOverlayIndex].label)
 
   for index, row in ipairs(rows) do
     local r, g, b = 255, 255, 255
@@ -156,6 +172,7 @@ function CharacterCreation:preview()
     visual.teethTexture,
     visual.skinColor
   )
+  Visuals.applyWalkingOverlay(heroId, visual.walkingOverlay)
 end
 
 function CharacterCreation:show(visual)
@@ -233,6 +250,8 @@ function CharacterCreation:decrease()
     self.faceTexture = self.faceTexture - 1
   elseif self.selectedField == 3 and self.skinTexture > Visuals.skinTexture.min then
     self.skinTexture = self.skinTexture - 1
+  elseif self.selectedField == 4 and self.walkingOverlayIndex > 1 then
+    self.walkingOverlayIndex = self.walkingOverlayIndex - 1
   end
 
   pendingPreview = true
@@ -245,6 +264,8 @@ function CharacterCreation:increase()
     self.faceTexture = self.faceTexture + 1
   elseif self.selectedField == 3 and self.skinTexture < Visuals.skinTexture.max then
     self.skinTexture = self.skinTexture + 1
+  elseif self.selectedField == 4 and self.walkingOverlayIndex < #Visuals.walkingOverlays then
+    self.walkingOverlayIndex = self.walkingOverlayIndex + 1
   end
 
   pendingPreview = true

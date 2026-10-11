@@ -19,7 +19,17 @@ Classic.visuals = {
     headModel = 'HUM_HEAD_PONY',
     headTexture = 18,
     teethTexture = 0,
-    skinColor = 0
+    skinColor = 0,
+    walkingOverlay = ''
+  },
+  walkingOverlays = {
+    { label = 'Default', overlay = '' },
+    { label = 'Guard', overlay = 'HUMANS_MILITIA.MDS' },
+    { label = 'Mage', overlay = 'HUMANS_MAGE.MDS' },
+    { label = 'Relaxed', overlay = 'HUMANS_RELAXED.MDS' },
+    { label = 'Arrogant', overlay = 'HUMANS_ARROGANCE.MDS' },
+    { label = 'Tired', overlay = 'HUMANS_TIRED.MDS' },
+    { label = 'Woman', overlay = 'HUMANS_BABE.MDS' }
   },
   headModels = {
     { label = 'Fighter', model = 'HUM_HEAD_FIGHTER' },
@@ -31,4 +41,40 @@ Classic.visuals = {
   }
 }
 
-return Classic.visuals
+local Visuals = Classic.visuals
+local allowedWalkingOverlays = {}
+
+for _, entry in ipairs(Visuals.walkingOverlays) do
+  allowedWalkingOverlays[entry.overlay] = true
+end
+
+function Visuals.isWalkingOverlayAllowed(overlay)
+  return type(overlay) == 'string' and allowedWalkingOverlays[overlay] == true
+end
+
+function Visuals.applyWalkingOverlay(playerId, overlay)
+  if overlay == nil then
+    overlay = Visuals.default.walkingOverlay
+  end
+
+  if not Visuals.isWalkingOverlayAllowed(overlay) then
+    return false
+  end
+
+  local alreadyApplied = false
+  for _, activeOverlay in ipairs(getPlayerOverlays(playerId) or {}) do
+    if activeOverlay == overlay then
+      alreadyApplied = true
+    elseif allowedWalkingOverlays[activeOverlay] then
+      removePlayerOverlay(playerId, activeOverlay)
+    end
+  end
+
+  if overlay ~= '' and not alreadyApplied then
+    return applyPlayerOverlay(playerId, overlay)
+  end
+
+  return true
+end
+
+return Visuals

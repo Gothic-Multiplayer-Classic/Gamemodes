@@ -63,6 +63,7 @@ local function applyVisual(visual)
     tonumber(visual.teethTexture) or Visuals.teethTexture,
     tonumber(visual.skinColor) or Visuals.skinColor
   )
+  Visuals.applyWalkingOverlay(heroId, visual.walkingOverlay)
 end
 
 local function updatePreview(info)

@@ -3,6 +3,7 @@ local Map = {
   textureSize = 8200,
   markerFont = 'FONT_DEFAULT.TGA',
   markerDraws = {},
+  players = {},
   currentConfig = nil
 }
 
@@ -80,15 +81,6 @@ local function getCurrentMapConfig()
   return nil
 end
 
-local function getOnlinePlayerIds()
-  local ok, players = pcall(getOnlinePlayers)
-  if ok and players ~= nil then
-    return players
-  end
-
-  return {}
-end
-
 local function getPlayerLabel(playerId)
   local name = getPlayerName(playerId)
   if name == nil or name == '' then
@@ -99,8 +91,8 @@ local function getPlayerLabel(playerId)
 end
 
 local function isPlayerDrawable(playerId)
-  local ok, streamed = pcall(isPlayerStreamed, playerId)
-  return ok and streamed == true
+  local world = getPlayerWorld(playerId)
+  return world ~= nil and normalizeWorldName(world) == normalizeWorldName(getWorld())
 end
 
 local function hideMarkers(fromIndex)
@@ -185,7 +177,7 @@ function Map:update()
   end
 
   local shownMarkers = 0
-  for _, playerId in ipairs(getOnlinePlayerIds()) do
+  for playerId in pairs(self.players) do
     if isPlayerDrawable(playerId) then
       local position = getPlayerPosition(playerId)
       if position ~= nil then

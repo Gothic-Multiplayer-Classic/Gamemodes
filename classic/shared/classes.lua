@@ -2,6 +2,7 @@ Classic = {}
 
 Classic.previewVirtualWorldBase = 1000
 Classic.selectorPlayerPosition = { x = 0, y = 0, z = 0, angle = 180 }
+Classic.voiceRange = 3000 -- Proximity range in game units.
 
 Classic.classes = {
   {

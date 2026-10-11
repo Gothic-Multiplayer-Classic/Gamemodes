@@ -1,13 +1,10 @@
-local ClassicRoot = Classic
-
-if ClassicRoot == nil and require ~= nil then
-  ClassicRoot = require('shared.classes')
-end
-
-Classic = ClassicRoot or {}
+Classic = Classic or require('shared.classes')
 
 Classic.visuals = {
-  bodyModel = 'HUM_BODY_NAKED0',
+  bodyModels = {
+    { label = 'Male', model = 'HUM_BODY_NAKED0' },
+    { label = 'Female', model = 'HUM_BODY_BABE0' }
+  },
   skinTexture = { min = 0, max = 12 },
   faceTexture = { min = 0, max = 162 },
   teethTexture = 0,
@@ -19,7 +16,17 @@ Classic.visuals = {
     headModel = 'HUM_HEAD_PONY',
     headTexture = 18,
     teethTexture = 0,
-    skinColor = 0
+    skinColor = 0,
+    walkingOverlay = ''
+  },
+  walkingOverlays = {
+    { label = 'Default', overlay = '' },
+    { label = 'Guard', overlay = 'HUMANS_MILITIA.MDS' },
+    { label = 'Mage', overlay = 'HUMANS_MAGE.MDS' },
+    { label = 'Relaxed', overlay = 'HUMANS_RELAXED.MDS' },
+    { label = 'Arrogant', overlay = 'HUMANS_ARROGANCE.MDS' },
+    { label = 'Tired', overlay = 'HUMANS_TIRED.MDS' },
+    { label = 'Woman', overlay = 'HUMANS_BABE.MDS' }
   },
   headModels = {
     { label = 'Fighter', model = 'HUM_HEAD_FIGHTER' },
@@ -31,4 +38,41 @@ Classic.visuals = {
   }
 }
 
-return Classic.visuals
+local Visuals = Classic.visuals
+function Visuals.normalizeWalkingOverlay(overlay)
+  if type(overlay) ~= 'string' then
+    return nil
+  end
+  overlay = string.upper(overlay):gsub('%.MDS$', '')
+  for _, walk in ipairs(Visuals.walkingOverlays) do
+    if walk.overlay:gsub('%.MDS$', '') == overlay then
+      return walk.overlay
+    end
+  end
+end
+
+function Visuals.applyWalkingOverlay(playerId, overlay)
+  if overlay == nil then
+    overlay = Visuals.default.walkingOverlay
+  end
+
+  overlay = Visuals.normalizeWalkingOverlay(overlay)
+  if overlay == nil then
+    return false
+  end
+
+  -- Use full MDS names when removing overlays, just as when applying them.
+  for _, walk in ipairs(Visuals.walkingOverlays) do
+    if walk.overlay ~= '' then
+      removePlayerOverlay(playerId, walk.overlay)
+    end
+  end
+
+  if overlay ~= '' then
+    return applyPlayerOverlay(playerId, overlay)
+  end
+
+  return true
+end
+
+return Visuals

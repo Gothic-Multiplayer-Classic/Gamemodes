@@ -1,106 +1,49 @@
-local Classic = Classic
 local Visuals = Classic.visuals
+local players = {}
+local playerFile = 'classic/players.json'
+local bodyModels = {}
+local headModels = {}
 
-local visualStorePath = 'classic/players.json'
-local selectedClassByPlayer = {}
-local creatingVisualByPlayer = {}
-local visualByPlayer = {}
-local allowedHeadModels = {}
+for _, body in ipairs(Visuals.bodyModels) do
+  bodyModels[body.model] = true
+end
 
 for _, head in ipairs(Visuals.headModels) do
-  allowedHeadModels[head.model] = true
+  headModels[head.model] = true
 end
+
+setVoiceRange(Classic.voiceRange)
+setVoiceEnabled(true)
 
 local function clampInt(value, minimum, maximum)
-  value = math.floor(tonumber(value) or minimum)
-
-  if value < minimum then
-    return minimum
-  end
-
-  if value > maximum then
-    return maximum
-  end
-
-  return value
+  return math.max(minimum, math.min(maximum, math.floor(tonumber(value) or minimum)))
 end
 
-local function normalizeVisual(visual)
-  if type(visual) ~= 'table' then
+local function checkVisual(visual)
+  if type(visual) ~= 'table' or not bodyModels[visual.bodyModel] or not headModels[visual.headModel] then
     return nil
   end
-
-  local bodyModel = visual.bodyModel
-  local headModel = visual.headModel
-
-  if bodyModel ~= Visuals.bodyModel or not allowedHeadModels[headModel] then
-    return nil
-  end
+  local walkingOverlay = visual.walkingOverlay
+  if walkingOverlay == nil then walkingOverlay = '' end
+  local overlay = Visuals.normalizeWalkingOverlay(walkingOverlay)
+  if overlay == nil then return nil end
 
   return {
-    bodyModel = bodyModel,
+    bodyModel = visual.bodyModel,
     bodyTexture = clampInt(visual.bodyTexture, Visuals.skinTexture.min, Visuals.skinTexture.max),
-    headModel = headModel,
+    headModel = visual.headModel,
     headTexture = clampInt(visual.headTexture, Visuals.faceTexture.min, Visuals.faceTexture.max),
     teethTexture = Visuals.teethTexture,
-    skinColor = Visuals.skinColor
+    skinColor = Visuals.skinColor,
+    walkingOverlay = overlay
   }
 end
 
-local function playerStoreKey(playerId)
-  local playerUuid = getPlayerUUID(playerId)
-  if playerUuid ~= nil and playerUuid ~= '' then
-    return 'uuid:' .. playerUuid
-  end
-
-  local playerName = getPlayerName(playerId)
-  if playerName ~= nil and playerName ~= '' then
-    return 'name:' .. string.lower(playerName)
-  end
-
-  local playerIp = getPlayerIP(playerId)
-  if playerIp ~= nil and playerIp ~= '' then
-    return 'ip:' .. playerIp
-  end
-
-  return tostring(playerId)
-end
-
-local function loadPlayerVisual(playerId)
-  local file = JSON(visualStorePath)
-  if not file then
-    return nil
-  end
-
-  return normalizeVisual(file:getItem(playerStoreKey(playerId)))
-end
-
-local function savePlayerVisual(playerId, visual)
-  local file = JSON(visualStorePath)
-  if not file then
-    return false
-  end
-
-  file:setItem(playerStoreKey(playerId), visual)
-  return true
-end
-
-local function applyVisual(playerId, visual)
-  if visual == nil then
-    return false
-  end
-
-  visualByPlayer[playerId] = visual
-
-  return setPlayerVisual(
-    playerId,
-    visual.bodyModel,
-    visual.bodyTexture,
-    visual.headModel,
-    visual.headTexture,
-    visual.teethTexture,
-    visual.skinColor
-  )
+local function setVisual(playerId)
+  local visual = players[playerId].visual
+  setPlayerVisual(playerId, visual.bodyModel, visual.bodyTexture, visual.headModel,
+    visual.headTexture, visual.teethTexture, visual.skinColor)
+  Visuals.applyWalkingOverlay(playerId, visual.walkingOverlay)
 end
 
 local function applyStats(playerId, info)
@@ -129,148 +72,212 @@ local function applyStats(playerId, info)
   setPlayerTalent(playerId, TALENT_PICKPOCKET, info.pickpocket or 0)
 end
 
-local function giveEquipment(playerId, info)
-  if info.armor ~= nil then
-    equipArmor(playerId, info.armor)
-  end
+local function equipClass(playerId, class)
+  if class.armor then equipArmor(playerId, class.armor) end
+  if class.primary then equipMeleeWeapon(playerId, class.primary) end
+  if class.secondary then equipRangedWeapon(playerId, class.secondary) end
+end
 
-  if info.primary ~= nil then
-    equipMeleeWeapon(playerId, info.primary)
-  end
+local function clearShowcase(playerId)
+  local player = players[playerId]
+  if player.preview == nil then return end
+  local class = Classic.classes[player.preview]
 
-  if info.secondary ~= nil then
-    equipRangedWeapon(playerId, info.secondary)
+  setPlayerWeaponMode(playerId, WEAPONMODE_NONE)
+  unequipArmor(playerId)
+  unequipMeleeWeapon(playerId)
+  unequipRangedWeapon(playerId)
+  for _, slot in ipairs({ 'armor', 'primary', 'secondary' }) do
+    if class[slot] then removeItem(playerId, class[slot], 1) end
   end
+  player.preview = nil
+end
 
-  for _, item in ipairs(info.items or {}) do
-    giveItem(playerId, item.instance, item.amount or 1)
-    if (info.magicLevel or 0) > 0 and string.sub(item.instance, 1, 5) == 'ITRU_' then
-      equipItem(playerId, item.instance)
+local function showClass(playerId, classId)
+  local player = players[playerId]
+  local class = Classic.classes[classId]
+  if player.preview ~= classId then
+    clearShowcase(playerId)
+    equipClass(playerId, class)
+    player.preview = classId
+  end
+  local spawn = class.spawn
+  setPlayerPosition(playerId, spawn.x, spawn.y, spawn.z)
+  setPlayerAngle(playerId, spawn.angle)
+end
+
+local function sendPlayers(playerId)
+  local classes = {}
+  local targets = {}
+  for id, player in pairs(players) do
+    if player.class ~= nil then
+      classes[id] = player.class
     end
+    if playerId == nil or playerId == id then
+      targets[#targets + 1] = id
+    end
+  end
+  if #targets > 0 then
+    triggerClientEvent(targets, 'classic:players', nil, classes)
   end
 end
 
-local function preparePreviewPlayer(playerId)
-  local spawn = Classic.selectorPlayerPosition
+local function showSelection(playerId)
+  local player = players[playerId]
+  if player.class ~= nil then
+    triggerClientEvent(playerId, 'classic:classSelected', playerId, player.class - 1, getPlayerName(playerId))
+  elseif player.creating then
+    triggerClientEvent(playerId, 'classic:startCharacterCreation', playerId, player.visual)
+  else
+    if player.preview == nil then showClass(playerId, 1) end
+    triggerClientEvent(playerId, 'classic:startClassSelect', playerId)
+  end
+  sendPlayers(playerId)
+end
 
+addEventHandler('onPlayerConnect', function(playerId)
+  local identity = getPlayerIdentity(playerId)
+  local key
+  if identity ~= nil and identity ~= '' then
+    key = 'identity:' .. identity
+  else
+    key = 'name:' .. string.lower(getPlayerName(playerId) or tostring(playerId))
+  end
+  local file = JSON.open(playerFile)
+  local visual
+  if file then visual = checkVisual(file:getItem(key)) end
+  players[playerId] = {
+    key = key,
+    visual = visual or checkVisual(Visuals.default),
+    creating = visual == nil
+  }
+
+  local position = Visuals.position
+  setVoiceEnabledForPlayer(playerId, false)
   setPlayerRespawnTime(playerId, 5000)
-  setPlayerHealth(playerId, 500)
   setPlayerMaxHealth(playerId, 500)
-  setPlayerMana(playerId, 500)
+  setPlayerHealth(playerId, 500)
   setPlayerMaxMana(playerId, 500)
+  setPlayerMana(playerId, 500)
   setPlayerStrength(playerId, 300)
   setPlayerDexterity(playerId, 300)
   setPlayerVirtualWorld(playerId, Classic.previewVirtualWorldBase + playerId)
-  setPlayerAngle(playerId, spawn.angle or 180)
-  spawnPlayer(playerId, spawn.x, spawn.y, spawn.z)
-end
+  spawnPlayer(playerId, position.x, position.y, position.z)
+  setPlayerAngle(playerId, position.angle)
+  setVisual(playerId)
+  showSelection(playerId)
+end)
 
-local function startClassSelection(playerId, visual)
-  creatingVisualByPlayer[playerId] = nil
-  applyVisual(playerId, visual)
-  triggerClientEvent(playerId, 'classic:startClassSelect', playerId, visual)
-end
-
+addEvent('classic:requestSelection', true)
 addEvent('classic:saveVisual', true)
+addEvent('classic:previewClass', true)
 addEvent('classic:selectClass', true)
 
-addEventHandler('onPlayerConnect', function(playerId)
-  selectedClassByPlayer[playerId] = nil
-  creatingVisualByPlayer[playerId] = nil
-  visualByPlayer[playerId] = nil
-
-  preparePreviewPlayer(playerId)
-
-  local visual = loadPlayerVisual(playerId)
-  if visual ~= nil then
-    startClassSelection(playerId, visual)
-    return
-  end
-
-  visual = normalizeVisual(Visuals.default)
-  creatingVisualByPlayer[playerId] = true
-  applyVisual(playerId, visual)
-  triggerClientEvent(playerId, 'classic:startCharacterCreation', playerId, visual)
+-- Event source 0 becomes nil in the core, so requests carry the player id.
+addEventHandler('classic:requestSelection', function(_, playerId)
+  if players[playerId] then showSelection(playerId) end
 end)
 
-addEventHandler('classic:saveVisual', function(playerId, visual)
-  playerId = tonumber(playerId)
-
-  if playerId == nil or not isPlayerConnected(playerId) or selectedClassByPlayer[playerId] ~= nil or not creatingVisualByPlayer[playerId] then
+addEventHandler('classic:saveVisual', function(_, playerId, visual)
+  local player = players[playerId]
+  if player == nil then return end
+  if not player.creating then
+    showSelection(playerId)
     return
   end
 
-  local normalized = normalizeVisual(visual)
-  if normalized == nil then
-    triggerClientEvent(playerId, 'classic:visualRejected', playerId, normalizeVisual(Visuals.default))
+  visual = checkVisual(visual)
+  if visual == nil then
+    triggerClientEvent(playerId, 'classic:visualRejected', playerId, player.visual,
+      'Choose an appearance and press RETURN again.')
     return
   end
 
-  savePlayerVisual(playerId, normalized)
-  startClassSelection(playerId, normalized)
+  local saved = pcall(function()
+    local file = assert(JSON.open(playerFile), 'Could not open player file')
+    file:setItem(player.key, visual)
+  end)
+  if not saved then
+    triggerClientEvent(playerId, 'classic:visualRejected', playerId, visual,
+      'Could not save appearance. Press RETURN to retry.')
+    return
+  end
+
+  player.visual = visual
+  player.creating = false
+  setVisual(playerId)
+  showSelection(playerId)
 end)
 
-addEventHandler('classic:selectClass', function(playerId, classId)
-  playerId = tonumber(playerId)
-  classId = tonumber(classId)
+addEventHandler('classic:previewClass', function(_, playerId, classId)
+  local player = players[playerId]
+  if player == nil or player.creating or player.class ~= nil then return end
+  if type(classId) ~= 'number' or classId % 1 ~= 0 or Classic.classes[classId + 1] == nil then return end
+  showClass(playerId, classId + 1)
+end)
 
-  if playerId == nil or classId == nil or selectedClassByPlayer[playerId] ~= nil or creatingVisualByPlayer[playerId] then
+addEventHandler('classic:selectClass', function(_, playerId, classId)
+  local player = players[playerId]
+  if player == nil then return end
+  if player.class ~= nil or player.creating then
+    showSelection(playerId)
+    return
+  end
+  if type(classId) ~= 'number' or classId % 1 ~= 0 or Classic.classes[classId + 1] == nil then
+    triggerClientEvent(playerId, 'classic:classRejected', playerId)
     return
   end
 
-  local info = Classic.classes[classId + 1]
-  if info == nil or not isPlayerConnected(playerId) then
-    return
-  end
-
-  selectedClassByPlayer[playerId] = classId
-
-  local spawn = info.spawn
-  applyStats(playerId, info)
-  applyVisual(playerId, visualByPlayer[playerId] or loadPlayerVisual(playerId))
-  setPlayerPosition(playerId, spawn.x, spawn.y, spawn.z)
-  setPlayerAngle(playerId, spawn.angle or 180)
+  local class = Classic.classes[classId + 1]
+  clearShowcase(playerId)
+  applyStats(playerId, class)
+  setVisual(playerId)
+  setPlayerPosition(playerId, class.spawn.x, class.spawn.y, class.spawn.z)
+  setPlayerAngle(playerId, class.spawn.angle)
   setPlayerVirtualWorld(playerId, 0)
-  giveEquipment(playerId, info)
-
-  local playerName = getPlayerName(playerId) or 'Player'
-  sendMessageToAll(0, 255, 0, playerName .. ' joined to the game.')
-  triggerClientEvent(playerId, 'classic:classSelected', playerId, classId)
+  equipClass(playerId, class)
+  for _, item in ipairs(class.items or {}) do
+    giveItem(playerId, item.instance, item.amount or 1)
+    if (class.magicLevel or 0) > 0 and item.instance:sub(1, 5) == 'ITRU_' then
+      equipItem(playerId, item.instance)
+    end
+  end
+  player.class = classId + 1
+  setVoiceEnabledForPlayer(playerId, true)
+  showSelection(playerId)
+  sendPlayers()
+  sendMessageToAll(0, 255, 0, getPlayerName(playerId) .. ' joined the game.')
 end)
 
 addEventHandler('onPlayerRespawn', function(playerId)
-  local classId = selectedClassByPlayer[playerId]
-  if classId == nil then
-    return
-  end
-
-  local info = Classic.classes[classId + 1]
-  if info == nil then
-    return
-  end
-
-  local spawn = info.spawn
-  applyVisual(playerId, visualByPlayer[playerId])
-  setPlayerPosition(playerId, spawn.x, spawn.y, spawn.z)
-  setPlayerAngle(playerId, spawn.angle or 180)
-  setPlayerHealth(playerId, info.health or 0)
-  setPlayerMana(playerId, info.mana or 0)
+  local player = players[playerId]
+  if player == nil or player.class == nil then return end
+  local class = Classic.classes[player.class]
+  setVisual(playerId)
+  setPlayerPosition(playerId, class.spawn.x, class.spawn.y, class.spawn.z)
+  setPlayerAngle(playerId, class.spawn.angle)
+  setPlayerHealth(playerId, class.health)
+  setPlayerMana(playerId, class.mana)
 end)
 
 addEventHandler('onPlayerMessage', function(playerId, message)
-  if selectedClassByPlayer[playerId] == nil then
-    cancelEvent()
-    return
+  local player = players[playerId]
+  if player ~= nil and player.class ~= nil then
+    local color = getPlayerColor(playerId)
+    sendPlayerMessageToAll(playerId, color.r, color.g, color.b, getPlayerName(playerId) .. ': ' .. message)
   end
-
-  local color = getPlayerColor(playerId) or { r = 255, g = 255, b = 255 }
-  local playerName = getPlayerName(playerId) or 'Player'
-  sendPlayerMessageToAll(playerId, color.r, color.g, color.b, playerName .. ': ' .. message)
   cancelEvent()
 end)
 
 addEventHandler('onPlayerDisconnect', function(playerId)
-  selectedClassByPlayer[playerId] = nil
-  creatingVisualByPlayer[playerId] = nil
-  visualByPlayer[playerId] = nil
+  local message = getPlayerName(playerId) .. ' left the game.'
+  players[playerId] = nil
+  for id in pairs(players) do
+    sendMessageToPlayer(id, 255, 0, 0, message)
+  end
+  sendPlayers()
 end)
+
+function onResourceStop()
+  setVoiceEnabled(false)
+end

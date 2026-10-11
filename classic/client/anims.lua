@@ -10,7 +10,7 @@ local Anims = {
   rows = {}
 }
 
-local animationDefinitions = {
+local animations = {
   { name = 'Sit', loop = 'S_SIT', start = 'T_STAND_2_SIT', finish = 'T_SIT_2_STAND' },
   { name = 'Piss', loop = 'S_PEE', start = 'T_STAND_2_PEE', finish = 'T_PEE_2_STAND' },
   { name = 'Guard', loop = 'S_HGUARD', start = 'T_STAND_2_HGUARD', finish = 'T_HGUARD_2_STAND' },
@@ -31,14 +31,6 @@ local animationDefinitions = {
   { name = 'Kick', loop = 'T_BORINGKICK' }
 }
 
-local blockedFragments = {
-  'DIVE',
-  'TOUCHPLATE',
-  'VWHEEL',
-  'RELOAD',
-  'LADDER'
-}
-
 local suppressedKeys = {
   KEY_T,
   KEY_F1,
@@ -46,7 +38,6 @@ local suppressedKeys = {
   KEY_F7
 }
 
-local animations = {}
 local previousControlsDisabled = false
 local previousKeyState = {}
 local activeMenuLoop = nil
@@ -56,73 +47,8 @@ title:setFont(Anims.font)
 title:setColor(255, 255, 255)
 title:setVisible(false)
 
-local function hasBlockedFragment(value)
-  if value == nil then
-    return false
-  end
-
-  for _, fragment in ipairs(blockedFragments) do
-    if string.find(value, fragment, 1, true) ~= nil then
-      return true
-    end
-  end
-
-  return false
-end
-
-local function shouldIncludeAnimation(animation)
-  return not hasBlockedFragment(animation.loop)
-    and not hasBlockedFragment(animation.start)
-    and not hasBlockedFragment(animation.finish)
-end
-
-for _, animation in ipairs(animationDefinitions) do
-  if shouldIncludeAnimation(animation) then
-    table.insert(animations, animation)
-  end
-end
-
-local function clamp(value, minimum, maximum)
-  if value < minimum then
-    return minimum
-  end
-
-  if value > maximum then
-    return maximum
-  end
-
-  return value
-end
-
-local function callBoolean(fn, ...)
-  local ok, value = pcall(fn, ...)
-  return ok and value == true
-end
-
 local function isHeroUnavailable()
-  if heroId == nil then
-    return true
-  end
-
-  return callBoolean(isPlayerDead, heroId) or callBoolean(isPlayerUnconscious, heroId)
-end
-
-local function getHeroAnimation()
-  if heroId == nil then
-    return nil
-  end
-
-  local ok, animation = pcall(getPlayerAni, heroId)
-  if ok then
-    return animation
-  end
-
-  return nil
-end
-
-local function getControlsDisabled()
-  local ok, disabled = pcall(isControlsDisabled)
-  return ok and disabled == true
+  return heroId == nil or isPlayerDead(heroId) or isPlayerUnconscious(heroId)
 end
 
 local function hideRows()
@@ -133,7 +59,7 @@ end
 
 local function setMenuInputDisabled(disabled)
   if disabled then
-    previousControlsDisabled = getControlsDisabled()
+    previousControlsDisabled = isControlsDisabled()
     disableControls(true)
 
     for _, key in ipairs(suppressedKeys) do
@@ -158,10 +84,6 @@ local function setMenuInputDisabled(disabled)
   end
 end
 
-local function isSelectedLoopActive(animation)
-  return activeMenuLoop == animation.loop or getHeroAnimation() == animation.loop
-end
-
 for index = 1, Anims.maxVisibleRows do
   local row = Draw.new(Anims.x, Anims.y + index * Anims.lineHeight, '')
   row:setFont(Anims.font)
@@ -175,8 +97,8 @@ function Anims:update()
     return
   end
 
-  self.selectedIndex = clamp(self.selectedIndex, 1, #animations)
-  self.firstIndex = clamp(self.firstIndex, 1, math.max(#animations - self.maxVisibleRows + 1, 1))
+  self.selectedIndex = math.max(1, math.min(#animations, self.selectedIndex))
+  self.firstIndex = math.max(1, math.min(math.max(#animations - self.maxVisibleRows + 1, 1), self.firstIndex))
 
   title:setVisible(true)
   hideRows()
@@ -202,13 +124,14 @@ function Anims:open()
   end
 
   local animation = animations[self.selectedIndex]
-  if animation.finish ~= nil and isSelectedLoopActive(animation) then
+  local playing = activeMenuLoop == animation.loop or getPlayerAni(heroId) == animation.loop
+  if animation.finish ~= nil and playing then
     playAni(heroId, animation.finish)
     activeMenuLoop = nil
     return
   end
 
-  if animation.finish == nil and isSelectedLoopActive(animation) then
+  if animation.finish == nil and playing then
     stopAni(heroId, animation.loop)
     activeMenuLoop = nil
     return

@@ -15,16 +15,6 @@ local function makeLine(index, text)
   return draw
 end
 
-local function formatRealTime()
-  local time = getRealTime()
-  return string.format('%02d:%02d:%02d', time.hour, time.minute, time.second)
-end
-
-local function formatGameTime()
-  local time = getTime()
-  return string.format('%02d:%02d', time.hour, time.minute)
-end
-
 Watch.lines = {
   makeLine(1, 'Real Time:'),
   makeLine(2, ''),
@@ -44,21 +34,15 @@ function Watch:update()
     return
   end
 
-  self.lines[2]:setText(formatRealTime())
-  self.lines[4]:setText(formatGameTime())
+  local realTime = getRealTime()
+  local gameTime = getTime()
+  self.lines[2]:setText(string.format('%02d:%02d:%02d', realTime.hour, realTime.minute, realTime.second))
+  self.lines[4]:setText(string.format('%02d:%02d', gameTime.hour, gameTime.minute))
 end
 
 addEventHandler('onRender', function()
   Watch:update()
 end)
-
-addEventHandler('onExit', function()
-  Watch:setVisible(false)
-end)
-
-function onResourceStop()
-  Watch:setVisible(false)
-end
 
 Watch:update()
 

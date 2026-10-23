@@ -6,11 +6,11 @@ local ClassSelect = {
   waiting = false
 }
 
-local controls = Draw.new(0, 0, 'Controls: A/D/RETURN')
-local className = Draw.new(0, 150, '')
-local description = Draw.new(0, 300, '')
-local team = Draw.new(0, 450, '')
-ClassSelect.status = Draw.new(0, 600, '')
+local controls = Label.new(0, 0, 'Controls: A/D/RETURN')
+local className = Label.new(0, 150, '')
+local description = Label.new(0, 300, '')
+local team = Label.new(0, 450, '')
+ClassSelect.status = Label.new(0, 600, '')
 local draws = { controls, className, description, team, ClassSelect.status }
 
 for _, draw in ipairs(draws) do
@@ -48,7 +48,7 @@ function ClassSelect:preview()
   team:setText('Team: ' .. info.team)
 
   -- Showcase items must be owned by the server, or inventory sync removes them.
-  if not triggerServerEvent('classic:previewClass', nil, heroId, self.selected - 1) then
+  if not triggerServerEvent('classic:previewClass', nil, self.selected - 1) then
     self.status:setText('Could not request showcase. Choose a class to retry.')
   end
 end
@@ -56,7 +56,7 @@ end
 function ClassSelect:choose()
   self.waiting = true
   self.status:setText('Joining the game... RETURN to retry.')
-  if not triggerServerEvent('classic:selectClass', nil, heroId, self.selected - 1) then
+  if not triggerServerEvent('classic:selectClass', nil, self.selected - 1) then
     self.waiting = false
     self.status:setText('Could not send class. Press RETURN to retry.')
   end
@@ -79,9 +79,9 @@ addEventHandler('onRender', function()
   local position = getPlayerPosition(heroId)
   if position ~= nil then
     local radians = math.rad(spawn.angle)
-    Camera.setPosition(position.x + 250 * math.sin(radians), position.y + 70,
+    Camera:setPosition(position.x + 250 * math.sin(radians), position.y + 70,
       position.z + 250 * math.cos(radians))
-    Camera.setRotation(0, spawn.angle + 180, 0)
+    Camera:setRotationDegrees(0, spawn.angle + 180, 0)
   end
 end)
 

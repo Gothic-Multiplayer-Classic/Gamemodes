@@ -24,8 +24,8 @@ local function selectionMode(enabled)
       cameraMovement = Camera.movementEnabled
       cameraModeChange = Camera.modeChangeEnabled
       for _, key in ipairs(blockedKeys) do
-        savedKeys[key] = isKeyDisabled(key)
-        disableKey(key, true)
+        savedKeys[key] = isScriptKeyEnabled(key)
+        setScriptKeyEnabled(key, false)
       end
     end
     disableControls(true)
@@ -35,8 +35,8 @@ local function selectionMode(enabled)
     chatInputClear()
     chatInputClose()
   elseif selecting then
-    for key, disabled in pairs(savedKeys) do
-      disableKey(key, disabled)
+    for key, enabled in pairs(savedKeys) do
+      setScriptKeyEnabled(key, enabled)
     end
     savedKeys = {}
     disableControls(false)
@@ -47,8 +47,12 @@ local function selectionMode(enabled)
   selecting = enabled
 end
 
-local function showCharacterCreation(playerId, visual, reason)
-  if playerId ~= nil and heroId ~= nil and playerId ~= heroId then return end
+local function isForLocalPlayer(context)
+  return context.remote and heroId ~= nil and context.sourceId == heroId
+end
+
+local function showCharacterCreation(context, visual, reason)
+  if not isForLocalPlayer(context) then return end
   selectionReceived = true
   selectionMode(true)
   VoiceChat:setEnabled(false)
@@ -64,7 +68,8 @@ addEvent('classic:startClassSelect', true)
 addEvent('classic:classRejected', true)
 addEvent('classic:classSelected', true)
 addEvent('classic:players', true)
-addEventHandler('classic:players', function(_, classes)
+addEventHandler('classic:players', function(context, classes)
+  if not context.remote or type(classes) ~= 'table' then return end
   Map.players = classes
   PlayerList.classes = classes
   Map:update()
@@ -73,8 +78,8 @@ end)
 addEventHandler('classic:startCharacterCreation', showCharacterCreation)
 addEventHandler('classic:visualRejected', showCharacterCreation)
 
-addEventHandler('classic:startClassSelect', function(playerId)
-  if playerId ~= nil and heroId ~= nil and playerId ~= heroId then return end
+addEventHandler('classic:startClassSelect', function(context)
+  if not isForLocalPlayer(context) then return end
   selectionReceived = true
   selectionMode(true)
   VoiceChat:setEnabled(false)
@@ -83,14 +88,14 @@ addEventHandler('classic:startClassSelect', function(playerId)
   DiscordActivity:setText('Selecting a class', '')
 end)
 
-addEventHandler('classic:classRejected', function(playerId, reason)
-  if playerId ~= nil and heroId ~= nil and playerId ~= heroId then return end
+addEventHandler('classic:classRejected', function(context, reason)
+  if not isForLocalPlayer(context) then return end
   ClassSelect.waiting = false
   ClassSelect.status:setText(reason or 'Choose a class and press RETURN again.')
 end)
 
-addEventHandler('classic:classSelected', function(playerId, classId, playerName)
-  if playerId ~= nil and heroId ~= nil and playerId ~= heroId then return end
+addEventHandler('classic:classSelected', function(context, classId, playerName)
+  if not isForLocalPlayer(context) then return end
   local info = Classic.classes[classId + 1]
   if info == nil then return end
   selectionReceived = true
@@ -112,7 +117,7 @@ addEventHandler('onRender', function()
   if heroId ~= nil and getPlayerPosition(heroId) ~= nil then
     disableControls(true)
     if not selectionReceived and not selectionRequested then
-      selectionRequested = triggerServerEvent('classic:requestSelection', nil, heroId)
+      selectionRequested = triggerServerEvent('classic:requestSelection', nil)
     end
   end
 end)

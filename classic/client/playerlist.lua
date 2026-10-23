@@ -23,11 +23,11 @@ local PlayerList = {
   rows = {}
 }
 
-local background = Texture.new(2500, 2000, 3500, 4000, 'MENU_INGAME.TGA')
+local background = Sprite.new(2500, 2000, 3500, 4000, 'MENU_INGAME.TGA')
 background:setVisible(false)
 
 local function makeDraw(x, y, text)
-  local draw = Draw.new(x, y, text)
+  local draw = Label.new(x, y, text)
   draw:setFont(PlayerList.font)
   draw:setColor(255, 255, 255)
   draw:setVisible(false)
@@ -85,8 +85,8 @@ function PlayerList:setVisible(visible)
     previousControlsDisabled = isControlsDisabled()
     disableControls(true)
     for _, key in ipairs(blockedKeys) do
-      savedKeys[key] = isKeyDisabled(key)
-      disableKey(key, true)
+      savedKeys[key] = isScriptKeyEnabled(key)
+      setScriptKeyEnabled(key, false)
     end
     self:update()
   else
@@ -94,8 +94,8 @@ function PlayerList:setVisible(visible)
       row:setVisible(false)
     end
     disableControls(previousControlsDisabled)
-    for key, disabled in pairs(savedKeys) do
-      disableKey(key, disabled)
+    for key, enabled in pairs(savedKeys) do
+      setScriptKeyEnabled(key, enabled)
     end
     savedKeys = {}
   end

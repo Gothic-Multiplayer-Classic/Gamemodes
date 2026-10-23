@@ -26,8 +26,8 @@ local Chat = {
   lines = {}
 }
 
-local inputPrompt = Draw.new(Chat.x, Chat.y + Chat.maxLines * Chat.lineHeight, '->')
-local inputText = Draw.new(Chat.x + Chat.inputTextOffset, Chat.y + Chat.maxLines * Chat.lineHeight, '')
+local inputPrompt = Label.new(Chat.x, Chat.y + Chat.maxLines * Chat.lineHeight, '->')
+local inputText = Label.new(Chat.x + Chat.inputTextOffset, Chat.y + Chat.maxLines * Chat.lineHeight, '')
 local lastInputText = ''
 
 inputPrompt:setFont(Chat.font)
@@ -197,7 +197,7 @@ end
 function Chat:pushMessage(message, r, g, b)
   message = tostring(message or ''):gsub('\r\n', '\n'):gsub('\r', '\n')
   for text in (message .. '\n'):gmatch('(.-)\n') do
-    local draw = Draw.new(0, 0, text)
+    local draw = Label.new(0, 0, text)
     draw:setFont(self.font)
     draw:setColor(r or 255, g or 255, b or 255)
     draw:setVisible(false)

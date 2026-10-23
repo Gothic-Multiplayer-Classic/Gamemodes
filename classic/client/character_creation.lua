@@ -11,16 +11,16 @@ local CharacterCreation = {
   walkingOverlayIndex = 1
 }
 
-local controls = Draw.new(0, 0, 'Controls: UP/DOWN/A/D/RETURN')
-local title = Draw.new(0, 150, 'Appearance')
+local controls = Label.new(0, 0, 'Controls: UP/DOWN/A/D/RETURN')
+local title = Label.new(0, 150, 'Appearance')
 local fields = {
-  Draw.new(0, 300, ''),
-  Draw.new(0, 450, ''),
-  Draw.new(0, 600, ''),
-  Draw.new(0, 750, ''),
-  Draw.new(0, 900, '')
+  Label.new(0, 300, ''),
+  Label.new(0, 450, ''),
+  Label.new(0, 600, ''),
+  Label.new(0, 750, ''),
+  Label.new(0, 900, '')
 }
-CharacterCreation.status = Draw.new(0, 1050, '')
+CharacterCreation.status = Label.new(0, 1050, '')
 local draws = { controls, title, fields[1], fields[2], fields[3], fields[4], fields[5], CharacterCreation.status }
 
 -- Body, head profile, face close-up, skin and walking views.
@@ -128,7 +128,7 @@ end
 function CharacterCreation:choose()
   self.waiting = true
   self.status:setText('Saving appearance... RETURN to retry.')
-  if not triggerServerEvent('classic:saveVisual', nil, heroId, self:visual()) then
+  if not triggerServerEvent('classic:saveVisual', nil, self:visual()) then
     self.waiting = false
     self.status:setText('Could not send appearance. Press RETURN to retry.')
   end
@@ -166,9 +166,9 @@ addEventHandler('onRender', function()
   local camera = cameras[CharacterCreation.selectedField]
   local angle = Visuals.position.angle + camera.angle
   local radians = math.rad(angle)
-  Camera.setPosition(position.x + camera.distance * math.sin(radians),
+  Camera:setPosition(position.x + camera.distance * math.sin(radians),
     position.y + camera.height, position.z + camera.distance * math.cos(radians))
-  Camera.setRotation(0, angle + 180, 0)
+  Camera:setRotationDegrees(0, angle + 180, 0)
 end)
 
 addEventHandler('onKeyDown', function(key)

@@ -125,12 +125,12 @@ end
 local function showSelection(playerId)
   local player = players[playerId]
   if player.class ~= nil then
-    triggerClientEvent(playerId, 'classic:classSelected', playerId, player.class - 1, getPlayerName(playerId))
+    triggerClientEvent(playerId, 'classic:classSelected', { sourceId = playerId }, player.class - 1, getPlayerName(playerId))
   elseif player.creating then
-    triggerClientEvent(playerId, 'classic:startCharacterCreation', playerId, player.visual)
+    triggerClientEvent(playerId, 'classic:startCharacterCreation', { sourceId = playerId }, player.visual)
   else
     if player.preview == nil then showClass(playerId, 1) end
-    triggerClientEvent(playerId, 'classic:startClassSelect', playerId)
+    triggerClientEvent(playerId, 'classic:startClassSelect', { sourceId = playerId })
   end
   sendPlayers(playerId)
 end
@@ -145,7 +145,7 @@ addEventHandler('onPlayerConnect', function(playerId)
   end
   local file = JSON.open(playerFile)
   local visual
-  if file then visual = checkVisual(file:getItem(key)) end
+  if file then visual = checkVisual(file:get(key)) end
   players[playerId] = {
     key = key,
     visual = visual or checkVisual(Visuals.default),
@@ -173,12 +173,16 @@ addEvent('classic:saveVisual', true)
 addEvent('classic:previewClass', true)
 addEvent('classic:selectClass', true)
 
--- Event source 0 becomes nil in the core, so requests carry the player id.
-addEventHandler('classic:requestSelection', function(_, playerId)
+-- The sender is authenticated by the server; payloads never select the requesting player.
+addEventHandler('classic:requestSelection', function(context)
+  if not context.remote then return end
+  local playerId = context.senderPlayerId
   if players[playerId] then showSelection(playerId) end
 end)
 
-addEventHandler('classic:saveVisual', function(_, playerId, visual)
+addEventHandler('classic:saveVisual', function(context, visual)
+  if not context.remote then return end
+  local playerId = context.senderPlayerId
   local player = players[playerId]
   if player == nil then return end
   if not player.creating then
@@ -188,17 +192,16 @@ addEventHandler('classic:saveVisual', function(_, playerId, visual)
 
   visual = checkVisual(visual)
   if visual == nil then
-    triggerClientEvent(playerId, 'classic:visualRejected', playerId, player.visual,
+    triggerClientEvent(playerId, 'classic:visualRejected', { sourceId = playerId }, player.visual,
       'Choose an appearance and press RETURN again.')
     return
   end
 
-  local saved = pcall(function()
-    local file = assert(JSON.open(playerFile), 'Could not open player file')
-    file:setItem(player.key, visual)
-  end)
+  local file = JSON.open(playerFile)
+  local saved = false
+  if file then saved = file:set(player.key, visual) end
   if not saved then
-    triggerClientEvent(playerId, 'classic:visualRejected', playerId, visual,
+    triggerClientEvent(playerId, 'classic:visualRejected', { sourceId = playerId }, visual,
       'Could not save appearance. Press RETURN to retry.')
     return
   end
@@ -209,14 +212,18 @@ addEventHandler('classic:saveVisual', function(_, playerId, visual)
   showSelection(playerId)
 end)
 
-addEventHandler('classic:previewClass', function(_, playerId, classId)
+addEventHandler('classic:previewClass', function(context, classId)
+  if not context.remote then return end
+  local playerId = context.senderPlayerId
   local player = players[playerId]
   if player == nil or player.creating or player.class ~= nil then return end
   if type(classId) ~= 'number' or classId % 1 ~= 0 or Classic.classes[classId + 1] == nil then return end
   showClass(playerId, classId + 1)
 end)
 
-addEventHandler('classic:selectClass', function(_, playerId, classId)
+addEventHandler('classic:selectClass', function(context, classId)
+  if not context.remote then return end
+  local playerId = context.senderPlayerId
   local player = players[playerId]
   if player == nil then return end
   if player.class ~= nil or player.creating then
@@ -224,7 +231,7 @@ addEventHandler('classic:selectClass', function(_, playerId, classId)
     return
   end
   if type(classId) ~= 'number' or classId % 1 ~= 0 or Classic.classes[classId + 1] == nil then
-    triggerClientEvent(playerId, 'classic:classRejected', playerId)
+    triggerClientEvent(playerId, 'classic:classRejected', { sourceId = playerId })
     return
   end
 
@@ -263,7 +270,7 @@ end)
 addEventHandler('onPlayerMessage', function(playerId, message)
   local player = players[playerId]
   if player ~= nil and player.class ~= nil then
-    local color = getPlayerColor(playerId)
+    local color = getPlayerNameColor(playerId)
     sendPlayerMessageToAll(playerId, color.r, color.g, color.b, getPlayerName(playerId) .. ': ' .. message)
   end
   cancelEvent()

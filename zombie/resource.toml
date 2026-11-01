@@ -1,0 +1,8 @@
+version = "1.0.0"
+author = "Risen; Gothic Multiplayer Team"
+description = "Wave of zombies: survive the fort or infect the defenders"
+
+scripts = [
+  "shared/config.lua",
+  "server/main.lua"
+]

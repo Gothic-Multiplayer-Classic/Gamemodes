@@ -1,50 +1,7 @@
-local Visuals = Classic.visuals
 local players = {}
-local playerFile = 'classic/players.json'
-local bodyModels = {}
-local headModels = {}
-
-for _, body in ipairs(Visuals.bodyModels) do
-  bodyModels[body.model] = true
-end
-
-for _, head in ipairs(Visuals.headModels) do
-  headModels[head.model] = true
-end
 
 setVoiceRange(Classic.voiceRange)
 setVoiceEnabled(true)
-
-local function clampInt(value, minimum, maximum)
-  return math.max(minimum, math.min(maximum, math.floor(tonumber(value) or minimum)))
-end
-
-local function checkVisual(visual)
-  if type(visual) ~= 'table' or not bodyModels[visual.bodyModel] or not headModels[visual.headModel] then
-    return nil
-  end
-  local walkingOverlay = visual.walkingOverlay
-  if walkingOverlay == nil then walkingOverlay = '' end
-  local overlay = Visuals.normalizeWalkingOverlay(walkingOverlay)
-  if overlay == nil then return nil end
-
-  return {
-    bodyModel = visual.bodyModel,
-    bodyTexture = clampInt(visual.bodyTexture, Visuals.skinTexture.min, Visuals.skinTexture.max),
-    headModel = visual.headModel,
-    headTexture = clampInt(visual.headTexture, Visuals.faceTexture.min, Visuals.faceTexture.max),
-    teethTexture = Visuals.teethTexture,
-    skinColor = Visuals.skinColor,
-    walkingOverlay = overlay
-  }
-end
-
-local function setVisual(playerId)
-  local visual = players[playerId].visual
-  setPlayerVisual(playerId, visual.bodyModel, visual.bodyTexture, visual.headModel,
-    visual.headTexture, visual.teethTexture, visual.skinColor)
-  Visuals.applyWalkingOverlay(playerId, visual.walkingOverlay)
-end
 
 local function applyStats(playerId, info)
   local skills = info.skills or {}
@@ -126,8 +83,6 @@ local function showSelection(playerId)
   local player = players[playerId]
   if player.class ~= nil then
     triggerClientEvent(playerId, 'classic:classSelected', { sourceId = playerId }, player.class - 1, getPlayerName(playerId))
-  elseif player.creating then
-    triggerClientEvent(playerId, 'classic:startCharacterCreation', { sourceId = playerId }, player.visual)
   else
     if player.preview == nil then showClass(playerId, 1) end
     triggerClientEvent(playerId, 'classic:startClassSelect', { sourceId = playerId })
@@ -136,23 +91,9 @@ local function showSelection(playerId)
 end
 
 addEventHandler('onPlayerConnect', function(playerId)
-  local identity = getPlayerIdentity(playerId)
-  local key
-  if identity ~= nil and identity ~= '' then
-    key = 'identity:' .. identity
-  else
-    key = 'name:' .. string.lower(getPlayerName(playerId) or tostring(playerId))
-  end
-  local file = JSON.open(playerFile)
-  local visual
-  if file then visual = checkVisual(file:get(key)) end
-  players[playerId] = {
-    key = key,
-    visual = visual or checkVisual(Visuals.default),
-    creating = visual == nil
-  }
+  players[playerId] = {}
 
-  local position = Visuals.position
+  local position = Classic.classes[1].spawn
   setVoiceEnabledForPlayer(playerId, false)
   setPlayerRespawnTime(playerId, 5000)
   setPlayerMaxHealth(playerId, 500)
@@ -163,13 +104,10 @@ addEventHandler('onPlayerConnect', function(playerId)
   setPlayerDexterity(playerId, 300)
   setPlayerVirtualWorld(playerId, Classic.previewVirtualWorldBase + playerId)
   spawnPlayer(playerId, position.x, position.y, position.z)
-  setPlayerAngle(playerId, position.angle)
-  setVisual(playerId)
   showSelection(playerId)
 end)
 
 addEvent('classic:requestSelection', true)
-addEvent('classic:saveVisual', true)
 addEvent('classic:previewClass', true)
 addEvent('classic:selectClass', true)
 
@@ -180,43 +118,11 @@ addEventHandler('classic:requestSelection', function(context)
   if players[playerId] then showSelection(playerId) end
 end)
 
-addEventHandler('classic:saveVisual', function(context, visual)
-  if not context.remote then return end
-  local playerId = context.senderPlayerId
-  local player = players[playerId]
-  if player == nil then return end
-  if not player.creating then
-    showSelection(playerId)
-    return
-  end
-
-  visual = checkVisual(visual)
-  if visual == nil then
-    triggerClientEvent(playerId, 'classic:visualRejected', { sourceId = playerId }, player.visual,
-      'Choose an appearance and press RETURN again.')
-    return
-  end
-
-  local file = JSON.open(playerFile)
-  local saved = false
-  if file then saved = file:set(player.key, visual) end
-  if not saved then
-    triggerClientEvent(playerId, 'classic:visualRejected', { sourceId = playerId }, visual,
-      'Could not save appearance. Press RETURN to retry.')
-    return
-  end
-
-  player.visual = visual
-  player.creating = false
-  setVisual(playerId)
-  showSelection(playerId)
-end)
-
 addEventHandler('classic:previewClass', function(context, classId)
   if not context.remote then return end
   local playerId = context.senderPlayerId
   local player = players[playerId]
-  if player == nil or player.creating or player.class ~= nil then return end
+  if player == nil or player.class ~= nil then return end
   if type(classId) ~= 'number' or classId % 1 ~= 0 or Classic.classes[classId + 1] == nil then return end
   showClass(playerId, classId + 1)
 end)
@@ -226,7 +132,7 @@ addEventHandler('classic:selectClass', function(context, classId)
   local playerId = context.senderPlayerId
   local player = players[playerId]
   if player == nil then return end
-  if player.class ~= nil or player.creating then
+  if player.class ~= nil then
     showSelection(playerId)
     return
   end
@@ -238,7 +144,6 @@ addEventHandler('classic:selectClass', function(context, classId)
   local class = Classic.classes[classId + 1]
   clearShowcase(playerId)
   applyStats(playerId, class)
-  setVisual(playerId)
   setPlayerPosition(playerId, class.spawn.x, class.spawn.y, class.spawn.z)
   setPlayerAngle(playerId, class.spawn.angle)
   setPlayerVirtualWorld(playerId, 0)
@@ -260,7 +165,6 @@ addEventHandler('onPlayerRespawn', function(playerId)
   local player = players[playerId]
   if player == nil or player.class == nil then return end
   local class = Classic.classes[player.class]
-  setVisual(playerId)
   setPlayerPosition(playerId, class.spawn.x, class.spawn.y, class.spawn.z)
   setPlayerAngle(playerId, class.spawn.angle)
   setPlayerHealth(playerId, class.health)

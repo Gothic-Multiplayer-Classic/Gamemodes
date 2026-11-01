@@ -1,7 +1,6 @@
 local Classic = require('shared.classes')
 local Chat = require('client.chat')
 local PlayerList = require('client.playerlist')
-local CharacterCreation = require('client.character_creation')
 local ClassSelect = require('client.class_selection')
 local Anims = require('client.anims')
 local Map = require('client.map')
@@ -51,19 +50,6 @@ local function isForLocalPlayer(context)
   return context.remote and heroId ~= nil and context.sourceId == heroId
 end
 
-local function showCharacterCreation(context, visual, reason)
-  if not isForLocalPlayer(context) then return end
-  selectionReceived = true
-  selectionMode(true)
-  VoiceChat:setEnabled(false)
-  ClassSelect:hide()
-  CharacterCreation:show(visual)
-  CharacterCreation.status:setText(reason or '')
-  DiscordActivity:setText('Creating a character', '')
-end
-
-addEvent('classic:startCharacterCreation', true)
-addEvent('classic:visualRejected', true)
 addEvent('classic:startClassSelect', true)
 addEvent('classic:classRejected', true)
 addEvent('classic:classSelected', true)
@@ -75,15 +61,11 @@ addEventHandler('classic:players', function(context, classes)
   Map:update()
   PlayerList:update()
 end)
-addEventHandler('classic:startCharacterCreation', showCharacterCreation)
-addEventHandler('classic:visualRejected', showCharacterCreation)
-
 addEventHandler('classic:startClassSelect', function(context)
   if not isForLocalPlayer(context) then return end
   selectionReceived = true
   selectionMode(true)
   VoiceChat:setEnabled(false)
-  CharacterCreation:hide()
   ClassSelect:show()
   DiscordActivity:setText('Selecting a class', '')
 end)
@@ -99,7 +81,6 @@ addEventHandler('classic:classSelected', function(context, classId, playerName)
   local info = Classic.classes[classId + 1]
   if info == nil then return end
   selectionReceived = true
-  CharacterCreation:hide()
   ClassSelect:hide()
   selectionMode(false)
   setHudMode(HUD_HEALTH_BAR, HUD_MODE_ALWAYS_VISIBLE)
@@ -126,14 +107,11 @@ addEventHandler('onWorldEnter', function()
   if selecting then
     selectionMode(true)
     selectionRequested = false
-    CharacterCreation.changed = CharacterCreation.visible
-    CharacterCreation.position = nil
     ClassSelect.changed = ClassSelect.visible
   end
 end)
 
 function onResourceStop()
-  CharacterCreation:hide()
   ClassSelect:hide()
   Anims:close()
   Map:close()
@@ -152,7 +130,6 @@ selectionMode(true)
 exports = {
   Chat = Chat,
   PlayerList = PlayerList,
-  CharacterCreation = CharacterCreation,
   ClassSelect = ClassSelect,
   Anims = Anims,
   Map = Map,
